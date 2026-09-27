@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { getPublicQrTarget } from "@/lib/public-app-url";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 import { logout } from "../actions";
@@ -211,6 +212,21 @@ export default async function ManagePage({
     cardsByLocation.get(card.location_id)?.push(card);
   });
 
+  const qrTargets = new Map<string, string>();
+
+  try {
+    cards.forEach((card) => {
+      qrTargets.set(card.id, getPublicQrTarget(card.public_code));
+    });
+  } catch {
+    console.error("Public app URL configuration is invalid.");
+    return (
+      <ManagementShell email={email}>
+        <ManagementMessage>Unable to load management data.</ManagementMessage>
+      </ManagementShell>
+    );
+  }
+
   const params = await searchParams;
   const status = typeof params.status === "string" ? params.status : "";
   const feedback = statusMessages[status];
@@ -403,12 +419,13 @@ export default async function ManagePage({
                     </p>
                   ) : (
                     <div className="mt-6 overflow-x-auto">
-                      <table className="w-full min-w-[760px] text-left text-sm">
+                      <table className="w-full min-w-[1040px] text-left text-sm">
                         <thead className="border-b border-slate-700 text-slate-400">
                           <tr>
                             <th className="pb-3 pr-6 font-medium">Card</th>
                             <th className="pb-3 pr-6 font-medium">Status</th>
                             <th className="pb-3 pr-6 font-medium">Paths</th>
+                            <th className="pb-3 pr-6 font-medium">QR code</th>
                             {canManage ? (
                               <th className="pb-3 text-right font-medium">
                                 Action
@@ -417,61 +434,96 @@ export default async function ManagePage({
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-800">
-                          {locationCards.map((card) => (
-                            <tr key={card.id}>
-                              <td className="py-4 pr-6 align-top">
-                                <p className="font-medium">
-                                  {card.label || "Unlabelled card"}
-                                </p>
-                                <code className="mt-1 block text-xs text-slate-400">
-                                  {card.public_code}
-                                </code>
-                              </td>
-                              <td
-                                className={
-                                  card.is_active
-                                    ? "py-4 pr-6 align-top text-emerald-300"
-                                    : "py-4 pr-6 align-top text-amber-300"
-                                }
-                              >
-                                {card.is_active ? "Active" : "Inactive"}
-                              </td>
-                              <td className="py-4 pr-6 align-top text-slate-300">
-                                <code className="block">
-                                  /t/{card.public_code}
-                                </code>
-                                <code className="mt-1 block">
-                                  /q/{card.public_code}
-                                </code>
-                              </td>
-                              {canManage ? (
-                                <td className="py-4 text-right align-top">
-                                  <form action={setCardActive}>
-                                    <input
-                                      name="card_id"
-                                      type="hidden"
-                                      value={card.id}
-                                    />
-                                    <input
-                                      name="is_active"
-                                      type="hidden"
-                                      value={
-                                        card.is_active ? "false" : "true"
-                                      }
-                                    />
-                                    <button
-                                      className="rounded-md border border-slate-700 px-3 py-2 text-sm font-semibold hover:border-slate-500 hover:bg-slate-900"
-                                      type="submit"
-                                    >
-                                      {card.is_active
-                                        ? "Deactivate"
-                                        : "Activate"}
-                                    </button>
-                                  </form>
+                          {locationCards.map((card) => {
+                            const qrRoute = `/dashboard/manage/cards/${encodeURIComponent(card.id)}/qr`;
+                            const qrTarget = qrTargets.get(card.id);
+
+                            return (
+                              <tr key={card.id}>
+                                <td className="py-4 pr-6 align-top">
+                                  <p className="font-medium">
+                                    {card.label || "Unlabelled card"}
+                                  </p>
+                                  <code className="mt-1 block text-xs text-slate-400">
+                                    {card.public_code}
+                                  </code>
                                 </td>
-                              ) : null}
-                            </tr>
-                          ))}
+                                <td
+                                  className={
+                                    card.is_active
+                                      ? "py-4 pr-6 align-top text-emerald-300"
+                                      : "py-4 pr-6 align-top text-amber-300"
+                                  }
+                                >
+                                  {card.is_active ? "Active" : "Inactive"}
+                                </td>
+                                <td className="py-4 pr-6 align-top text-slate-300">
+                                  <code className="block">
+                                    /t/{card.public_code}
+                                  </code>
+                                  <code className="mt-1 block">
+                                    /q/{card.public_code}
+                                  </code>
+                                </td>
+                                <td className="py-4 pr-6 align-top">
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img
+                                    alt={`QR code for ${card.label || "card"}`}
+                                    className="h-48 w-48 bg-white"
+                                    height="192"
+                                    src={`${qrRoute}?format=svg`}
+                                    width="192"
+                                  />
+                                  <p className="mt-4 text-xs text-slate-400">
+                                    QR target
+                                  </p>
+                                  <code className="mt-1 block max-w-xs break-all text-xs text-slate-300">
+                                    {qrTarget}
+                                  </code>
+                                  <div className="mt-4 flex flex-wrap gap-2">
+                                    <a
+                                      className="rounded-md border border-slate-700 px-3 py-2 text-xs font-semibold hover:border-slate-500 hover:bg-slate-900"
+                                      href={`${qrRoute}?format=png&download=1`}
+                                    >
+                                      Download PNG
+                                    </a>
+                                    <a
+                                      className="rounded-md border border-slate-700 px-3 py-2 text-xs font-semibold hover:border-slate-500 hover:bg-slate-900"
+                                      href={`${qrRoute}?format=svg&download=1`}
+                                    >
+                                      Download SVG
+                                    </a>
+                                  </div>
+                                </td>
+                                {canManage ? (
+                                  <td className="py-4 text-right align-top">
+                                    <form action={setCardActive}>
+                                      <input
+                                        name="card_id"
+                                        type="hidden"
+                                        value={card.id}
+                                      />
+                                      <input
+                                        name="is_active"
+                                        type="hidden"
+                                        value={
+                                          card.is_active ? "false" : "true"
+                                        }
+                                      />
+                                      <button
+                                        className="rounded-md border border-slate-700 px-3 py-2 text-sm font-semibold hover:border-slate-500 hover:bg-slate-900"
+                                        type="submit"
+                                      >
+                                        {card.is_active
+                                          ? "Deactivate"
+                                          : "Activate"}
+                                      </button>
+                                    </form>
+                                  </td>
+                                ) : null}
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
