@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -33,14 +34,22 @@ function DashboardShell({
             ) : null}
           </div>
 
-          <form action={logout}>
-            <button
+          <div className="flex flex-wrap gap-3">
+            <Link
               className="rounded-md border border-slate-700 px-4 py-2 text-sm font-semibold hover:border-slate-500 hover:bg-slate-900"
-              type="submit"
+              href="/dashboard/manage"
             >
-              Log out
-            </button>
-          </form>
+              Locations &amp; Cards
+            </Link>
+            <form action={logout}>
+              <button
+                className="rounded-md border border-slate-700 px-4 py-2 text-sm font-semibold hover:border-slate-500 hover:bg-slate-900"
+                type="submit"
+              >
+                Log out
+              </button>
+            </form>
+          </div>
         </header>
 
         {children}
